@@ -8,6 +8,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Literata:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#2B6E6E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sổ Lớp Học">
 <style>
   :root{
     --paper:#FBF7EF;
@@ -82,6 +89,28 @@
   .role-tag{
     font-size:11.5px; padding:4px 10px; border-radius:20px; background:var(--teal-bg); color:var(--teal-dark); font-weight:600;
   }
+  .bell-btn{
+    display:flex; align-items:center; gap:6px; border:1px solid var(--rule); background:var(--card);
+    border-radius:20px; padding:5px 12px; font-size:12.5px; color:var(--ink-soft); font-weight:500; flex-shrink:0;
+  }
+  .bell-btn:hover{background:var(--paper);}
+  .bell-badge{background:var(--margin-red); color:#fff; border-radius:10px; font-size:10.5px; padding:1px 6px; font-weight:700; line-height:1.4;}
+  .notif-panel{
+    position:fixed; right:16px; top:60px; width:380px; max-width:calc(100vw - 24px); max-height:70vh; overflow:auto;
+    background:var(--card); border:1px solid var(--rule); border-radius:8px; box-shadow:0 8px 28px rgba(30,42,68,.2); z-index:40;
+  }
+  .notif-head{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid var(--rule); position:sticky; top:0; background:var(--card);}
+  .push-box{padding:10px 14px; border-bottom:1px solid var(--rule); font-size:12.5px; background:var(--paper); line-height:1.5; color:var(--ink-soft);}
+  .push-btn{background:var(--teal); color:#fff; border:none; border-radius:6px; padding:8px 12px; font-size:12.5px; font-weight:600; width:100%;}
+  .push-on{color:var(--green); font-weight:600;}
+  .notif-item{padding:10px 14px; border-bottom:1px solid var(--paper-line); cursor:pointer; font-size:13px; line-height:1.45; position:relative;}
+  .notif-item:hover{background:var(--paper);}
+  .notif-item.unread{background:var(--teal-bg);}
+  .notif-item.unread::before{content:""; position:absolute; left:5px; top:17px; width:6px; height:6px; border-radius:50%; background:var(--margin-red);}
+  .notif-time{font-size:11px; color:var(--muted); margin-top:3px;}
+  .notif-empty{padding:26px 14px; text-align:center; color:var(--muted); font-size:13px;}
+  .toast-wrap{position:fixed; right:16px; bottom:16px; z-index:60; display:flex; flex-direction:column; gap:8px; max-width:calc(100vw - 32px);}
+  .toast{background:var(--ink); color:#fff; padding:11px 14px; border-radius:8px; font-size:13px; line-height:1.4; cursor:pointer; max-width:360px; box-shadow:0 6px 20px rgba(0,0,0,.25);}
   .avatar-wrap{
     width:30px; height:30px; border-radius:50%; overflow:hidden; cursor:pointer; flex-shrink:0;
     display:flex; align-items:center; justify-content:center; background:var(--teal-bg);
@@ -195,7 +224,15 @@
   .grade-field label{display:block; font-size:11px; color:var(--ink-soft); margin-bottom:3px;}
   .grade-field input, .grade-field textarea{width:100%; padding:6px 8px; border:1px solid var(--rule); border-radius:4px;}
   .grade-box textarea.g-feedback{width:100%; box-sizing:border-box; min-height:64px; padding:8px 10px; border:1px solid var(--rule); border-radius:4px; resize:vertical;}
-  #f-hw{min-height:140px;}
+  #f-objective{min-height:140px;}
+  .round-block{border:1px solid var(--rule); border-radius:6px; padding:12px 14px 14px; margin-top:12px; background:var(--paper);}
+  .round-head{display:flex; justify-content:space-between; align-items:center;}
+  .round-title{font-size:13px; color:var(--teal-dark);}
+  .round-block label:first-of-type{margin-top:6px;}
+  .round-block textarea.round-hw{min-height:100px;}
+  .round-del{font-size:12px;}
+  .confirm-line{font-size:12.5px; color:var(--green); margin-top:6px; font-weight:600;}
+  .confirm-line.pending{color:var(--ink-soft); font-weight:400;}
 
   .quality-badge{
     display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:20px; font-size:12.5px; font-weight:600; margin-top:12px;
@@ -328,6 +365,13 @@
       <div class="who" id="app-sub">Toán 9 · Gia sư</div>
     </div>
     <div class="top-right">
+      <button class="bell-btn" id="bell-btn" type="button" title="Thông báo">🔔 <span class="bell-label">Thông báo</span><span class="bell-badge" id="bell-badge" style="display:none;">0</span></button>
+      <div class="notif-panel" id="notif-panel" style="display:none;">
+        <div class="notif-head"><b>Thông báo</b><button type="button" class="logout-link" id="notif-close">Đóng</button></div>
+        <div class="push-box" id="push-box" style="display:none;"></div>
+        <div id="notif-list"></div>
+      </div>
+      <div class="toast-wrap" id="toast-wrap"></div>
       <label class="avatar-wrap" title="Bấm để đổi ảnh đại diện">
         <img id="my-avatar-img" class="avatar-img" style="display:none;">
         <span id="my-avatar-fallback" class="avatar-fallback">?</span>
@@ -393,14 +437,9 @@
     <input type="text" id="f-meeting" placeholder="https://meet.google.com/...">
     <label>Link video buổi học</label>
     <input type="text" id="f-video" placeholder="https://drive.google.com/...">
-    <label>Link đề bài</label>
-    <input type="text" id="f-assignment-link" placeholder="https://docs.google.com/... (đề bài tập)">
-    <label>Link nộp bài tập về nhà</label>
-    <input type="text" id="f-submit-link" placeholder="https://forms.google.com/... (nơi nộp bài, nếu có)">
-    <label>Bài tập về nhà (yêu cầu)</label>
-    <textarea id="f-hw" placeholder="Dạng 1: Bài...; Dạng 2: Bài..."></textarea>
-    <label>Hạn nộp bài</label>
-    <input type="date" id="f-deadline">
+    <label>Bài tập về nhà (giao nhiều lần, mỗi lần một hạn nộp riêng)</label>
+    <div id="rounds-wrap"></div>
+    <button type="button" class="btn-secondary" id="round-add" style="margin-top:10px;">+ Thêm lần giao bài</button>
     <div class="modal-actions">
       <button class="btn-secondary" id="lesson-cancel">Hủy</button>
       <button class="save-btn" id="lesson-save" style="margin-top:0;">Lưu buổi học</button>
@@ -599,6 +638,14 @@ async function loadLessons(){
   return l;
 }
 async function saveLessons(){ await storSet('lessons', LESSONS, true); }
+/* Nhiều người (GV/PH/HS) cùng dùng: trước mỗi lần lưu phải tải dữ liệu MỚI NHẤT về rồi mới áp thay đổi,
+   nếu không bản cũ trong máy sẽ ghi đè mất buổi học/bình luận người khác vừa thêm. */
+async function freshLessonsOrAbort(){
+  const fresh = await storGet('lessons', true);
+  if(!Array.isArray(fresh)){ alert('Không tải được dữ liệu mới nhất, kiểm tra mạng rồi thử lại nhé.'); return false; }
+  LESSONS = fresh;
+  return true;
+}
 async function saveMeta(){ await storSet('meta', META, true); }
 
 function seedLessons(){
@@ -779,9 +826,9 @@ function deadlineNote(deadline){
   if(diff===0) return ` · Hạn nộp hôm nay`;
   return ` · Đã quá hạn ${-diff} ngày`;
 }
-function submissionStatus(lesson, sub){
-  if(!lesson.deadline) return null;
-  const dl = new Date(lesson.deadline+'T23:59:59');
+function submissionStatus(round, sub){
+  if(!round || !round.deadline) return null;
+  const dl = new Date(round.deadline+'T23:59:59');
   if(sub && sub.submittedAt){
     const subDate = new Date(sub.submittedAt);
     return subDate <= dl
@@ -792,6 +839,322 @@ function submissionStatus(lesson, sub){
   if(now > dl) return {label:'Không nộp bài', color:'var(--red)', bg:'var(--red-bg)'};
   return null;
 }
+
+/* Dòng "Hạn nộp" của từng lần giao bài: ghi rõ Lần N, và đổi theo trạng thái nộp của đúng lần đó */
+function deadlineLine(lesson, round, submittedStatus){
+  const rounds = getRounds(lesson);
+  const idx = rounds.findIndex(x=>x.id===round.id);
+  const prefix = rounds.length>1 ? `Lần ${idx+1} · ` : '';
+  const date = round.deadline.split('-').reverse().join('/');
+  if(submittedStatus){
+    const ok = submittedStatus.label==='Nộp đúng hạn';
+    return {text:`${prefix}Hạn nộp: ${date} · ${ok?'✓ ':''}${submittedStatus.label}`, color:submittedStatus.color};
+  }
+  return {text:`${prefix}Hạn nộp: ${date}${deadlineNote(round.deadline)}`, color:''};
+}
+
+/* ----- Nhiều lần giao bài tập / buổi học ----- */
+function getRounds(lesson){
+  if(Array.isArray(lesson.hwRounds)) return lesson.hwRounds;
+  // dữ liệu cũ (1 lần giao bài) -> tự quy về "Lần 1"
+  if(lesson.hw || lesson.deadline){
+    return [{id:'r1', content:lesson.hw||'', deadline:lesson.deadline||''}];
+  }
+  return [];
+}
+// Lần 1 giữ khóa cũ để không mất dữ liệu nộp bài đã có
+function subKey(lesson, round){
+  return round.id==='r1' ? 'submission:'+lesson.id : 'submission:'+lesson.id+':'+round.id;
+}
+
+/* =================== THÔNG BÁO (chuông) =================== */
+let INBOX = {items:[], lastReadAt:null};
+let notifUnsub = null;
+let notifSeenIds = null;
+let notifPanelPrevRead = null;
+let notifPanelOpen = false;
+
+function inboxRef(role){ return db.collection('solophoc_kv').doc('inbox:'+role); }
+function lessonLabel(l){
+  const d = fmtDate(l.date);
+  return `${d.day}/${d.month}/${d.year}${l.topic ? ' · '+l.topic : ''}`;
+}
+function shortText(t, n){
+  t = (t||'').replace(/\s+/g,' ').trim();
+  return t.length>n ? t.slice(0,n)+'…' : t;
+}
+function ddmm(iso){ if(!iso) return ''; const a = iso.split('-'); return a[2]+'/'+a[1]; }
+function timeAgo(ts){
+  const mins = Math.floor((Date.now()-new Date(ts).getTime())/60000);
+  if(mins < 1) return 'Vừa xong';
+  if(mins < 60) return mins+' phút trước';
+  if(mins < 60*24) return Math.floor(mins/60)+' giờ trước';
+  return new Date(ts).toLocaleString('vi-VN');
+}
+
+/* Gửi thông báo tới các vai trò (không gửi cho chính người thao tác). arrayUnion = ghi nguyên tử, không ghi đè nhau. */
+async function sendNotif(targetRoles, payload){
+  if(!firebaseReady || !CURRENT_ROLE) return;
+  const roles = [...new Set(targetRoles)].filter(r=>r!==CURRENT_ROLE);
+  await Promise.all(roles.map(async r=>{
+    try{
+      const item = {
+        id:'n'+Date.now()+Math.random().toString(36).slice(2,6),
+        ts:new Date().toISOString(), from:CURRENT_ROLE,
+        text:payload.text, lessonId:payload.lessonId||null, month:payload.month||null
+      };
+      await inboxRef(r).set({items: firebase.firestore.FieldValue.arrayUnion(item)}, {merge:true});
+      pushToRole(r, item);   // đồng thời đẩy ra điện thoại (nếu vai trò đó đã bật)
+    }catch(e){ console.error('Gửi thông báo thất bại', r, e); }
+  }));
+}
+
+function unreadCount(){
+  const lr = INBOX.lastReadAt;
+  return INBOX.items.filter(i=>!lr || i.ts>lr).length;
+}
+function renderBell(){
+  const n = unreadCount();
+  const b = document.getElementById('bell-badge');
+  b.style.display = n ? 'inline-block' : 'none';
+  b.textContent = n>99 ? '99+' : n;
+}
+function renderNotifPanel(){
+  const list = document.getElementById('notif-list');
+  if(!INBOX.items.length){ list.innerHTML = '<div class="notif-empty">Chưa có thông báo nào.</div>'; return; }
+  const lr = notifPanelPrevRead;
+  list.innerHTML = INBOX.items.slice(0,50).map(i=>`
+    <div class="notif-item ${(!lr || i.ts>lr) ? 'unread' : ''}" data-nid="${escapeHtml(i.id)}">
+      <div>${escapeHtml(i.text)}</div>
+      <div class="notif-time" title="${new Date(i.ts).toLocaleString('vi-VN')}">${timeAgo(i.ts)}</div>
+    </div>`).join('');
+}
+async function markNotifsRead(){
+  if(!firebaseReady || !CURRENT_ROLE || !INBOX.items.length) return;
+  const latest = INBOX.items[0].ts;
+  if(INBOX.lastReadAt === latest) return;
+  const upd = {lastReadAt: latest};
+  if(INBOX.items.length > 150) upd.items = INBOX.items.slice(0,100); // dọn bớt thông báo quá cũ
+  try{ await inboxRef(CURRENT_ROLE).set(upd, {merge:true}); }catch(e){ console.error(e); }
+}
+function openNotifPanel(){
+  notifPanelOpen = true;
+  notifPanelPrevRead = INBOX.lastReadAt;
+  document.getElementById('notif-panel').style.display = 'block';
+  renderNotifPanel();
+  renderPushBox();
+  markNotifsRead();
+}
+function closeNotifPanel(){
+  notifPanelOpen = false;
+  notifPanelPrevRead = null;
+  document.getElementById('notif-panel').style.display = 'none';
+}
+function showToast(item, extra){
+  const wrap = document.getElementById('toast-wrap');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = '🔔 ' + shortText(item.text, 140) + (extra>0 ? ` (+${extra} thông báo mới)` : '');
+  t.addEventListener('click', ()=>{ t.remove(); openNotifTarget(item); });
+  wrap.appendChild(t);
+  setTimeout(()=>t.remove(), 8000);
+}
+/* Bấm vào thông báo -> tải dữ liệu mới nhất, nhảy tới đúng tháng/buổi học */
+async function openNotifTarget(item){
+  closeNotifPanel();
+  const fresh = await storGet('lessons', true);
+  if(Array.isArray(fresh)) LESSONS = fresh;
+  if(item.lessonId){
+    const l = LESSONS.find(x=>x.id===item.lessonId);
+    if(l) CURRENT_MONTH = monthKey(l.date);
+  } else if(item.month){
+    CURRENT_MONTH = item.month;
+  }
+  const months = [...new Set(LESSONS.map(l=>monthKey(l.date)))].sort();
+  renderMonthTabs(months);
+  await renderFeed();
+  if(item.lessonId){
+    const el = document.querySelector(`.entry[data-id="${item.lessonId}"]`);
+    if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  } else {
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+}
+function startNotifListener(){
+  stopNotifListener();
+  if(!firebaseReady || !CURRENT_ROLE){ renderBell(); return; }
+  notifSeenIds = null;
+  notifUnsub = inboxRef(CURRENT_ROLE).onSnapshot(snap=>{
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const items = (data.items || []).slice().sort((a,b)=> b.ts.localeCompare(a.ts));
+    const prevIds = notifSeenIds;
+    INBOX = {items, lastReadAt: data.lastReadAt || null};
+    notifSeenIds = new Set(items.map(i=>i.id));
+    if(prevIds){
+      const fresh = items.filter(i=>!prevIds.has(i.id));
+      if(fresh.length && !notifPanelOpen) showToast(fresh[0], fresh.length-1);
+    }
+    renderBell();
+    if(notifPanelOpen){ renderNotifPanel(); markNotifsRead(); }
+  }, err=>console.error('Lỗi nghe thông báo', err));
+}
+function stopNotifListener(){
+  if(notifUnsub){ try{ notifUnsub(); }catch(e){} notifUnsub = null; }
+  INBOX = {items:[], lastReadAt:null};
+  notifSeenIds = null;
+  closeNotifPanel();
+  document.getElementById('toast-wrap').innerHTML = '';
+  renderBell();
+}
+document.getElementById('bell-btn').addEventListener('click', ()=>{
+  if(notifPanelOpen) closeNotifPanel(); else openNotifPanel();
+});
+document.getElementById('notif-close').addEventListener('click', closeNotifPanel);
+document.getElementById('notif-list').addEventListener('click', (e)=>{
+  const el = e.target.closest('.notif-item');
+  if(!el) return;
+  const item = INBOX.items.find(i=>i.id===el.dataset.nid);
+  if(item) openNotifTarget(item);
+});
+document.addEventListener('click', (e)=>{
+  if(notifPanelOpen && !e.target.closest('#notif-panel') && !e.target.closest('#bell-btn')) closeNotifPanel();
+});
+
+/* =================== PUSH: thông báo ra điện thoại (kể cả khi đã đóng trang) =================== */
+/* Điền 3 giá trị dưới đây sau khi làm xong phần cài đặt (xem hướng dẫn). Để trống = tính năng tự ẩn, web vẫn chạy bình thường. */
+const PUSH_CONFIG = {
+  vapidKey: 'BBxfzQfXXlF01fYxCDbfVCVoxd4jWtfSUFJpxmNir91vMHLWiV3ICBrfVUtp7sTTyPPGXzFVLMfmrTrl7zMiOq4',   // Firebase Console > Project settings > Cloud Messaging > Web Push certificates > Key pair
+  workerUrl: 'https://so-lop-hoc-push.nghianguyenvan040105.workers.dev',  // địa chỉ Cloudflare Worker, dạng https://xxx.workers.dev
+  key: 'A8tVEVxJOGqX0NzhMaS5_TAo'         // chuỗi bí mật, phải TRÙNG với PUSH_KEY đã đặt trong Cloudflare Worker
+};
+function pushConfigured(){ return !!(PUSH_CONFIG.vapidKey && PUSH_CONFIG.workerUrl && PUSH_CONFIG.key); }
+function isIOSDevice(){
+  const ua = navigator.userAgent || '';
+  return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+}
+function isStandaloneApp(){
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone===true;
+}
+async function pushSupported(){
+  try{
+    if(!pushConfigured() || !firebaseReady) return false;
+    if(location.protocol!=='https:') return false;
+    if(!('serviceWorker' in navigator) || !('Notification' in window)) return false;
+    if(typeof firebase.messaging!=='function') return false;
+    let sup = firebase.messaging.isSupported ? firebase.messaging.isSupported() : true;
+    if(sup && typeof sup.then==='function') sup = await sup;
+    return !!sup;
+  }catch(e){ return false; }
+}
+function tokensRef(role){ return db.collection('solophoc_kv').doc('pushtokens:'+role); }
+let fcmMessaging = null;
+function getFcm(){ if(!fcmMessaging) fcmMessaging = firebase.messaging(); return fcmMessaging; }
+
+/* Đăng ký thiết bị này nhận thông báo cho vai trò đang đăng nhập (và gỡ khỏi các vai trò khác) */
+async function registerPush(){
+  const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+  await navigator.serviceWorker.ready;
+  const token = await getFcm().getToken({vapidKey: PUSH_CONFIG.vapidKey, serviceWorkerRegistration: reg});
+  if(!token) throw new Error('Không lấy được mã thiết bị');
+  const FV = firebase.firestore.FieldValue;
+  await tokensRef(CURRENT_ROLE).set({tokens: FV.arrayUnion(token)}, {merge:true});
+  for(const r of ['teacher','parent','student']){
+    if(r!==CURRENT_ROLE){ try{ await tokensRef(r).set({tokens: FV.arrayRemove(token)}, {merge:true}); }catch(e){} }
+  }
+  await storSet('push_device', {role:CURRENT_ROLE, token}, false);
+  return token;
+}
+async function enablePush(){
+  const perm = await Notification.requestPermission();   // phải gọi ngay trong lúc bấm nút (iPhone bắt buộc)
+  if(perm==='granted'){
+    try{ await registerPush(); }
+    catch(e){ console.error(e); alert('Không bật được thông báo: '+(e.message||e)); }
+  }
+  renderPushBox();
+}
+async function disablePush(){
+  try{
+    const dev = await storGet('push_device', false);
+    if(dev && dev.token){
+      await tokensRef(CURRENT_ROLE).set({tokens: firebase.firestore.FieldValue.arrayRemove(dev.token)}, {merge:true});
+    }
+    await getFcm().deleteToken();
+  }catch(e){ console.error(e); }
+  try{ localStorage.removeItem('solophoc_push_device'); }catch(e){}
+  renderPushBox();
+}
+/* Mỗi lần đăng nhập: nếu thiết bị đã từng bật thì làm mới mã (mã có thể đổi) và gắn đúng vai trò */
+async function autoRefreshPush(){
+  try{
+    if(!(await pushSupported())) return;
+    if(Notification.permission!=='granted') return;
+    const dev = await storGet('push_device', false);
+    if(dev) await registerPush();
+  }catch(e){ console.error('Làm mới thông báo đẩy lỗi', e); }
+}
+/* Đăng xuất: thiết bị này thôi nhận thông báo của vai trò vừa thoát */
+async function pushLogoutCleanup(){
+  try{
+    if(!firebaseReady || !CURRENT_ROLE) return;
+    const dev = await storGet('push_device', false);
+    if(dev && dev.token){
+      await tokensRef(CURRENT_ROLE).set({tokens: firebase.firestore.FieldValue.arrayRemove(dev.token)}, {merge:true});
+    }
+  }catch(e){ console.error(e); }
+}
+/* Gửi đẩy tới mọi thiết bị của 1 vai trò, thông qua Cloudflare Worker */
+async function pushToRole(role, item){
+  try{
+    if(!pushConfigured() || !firebaseReady) return;
+    const snap = await tokensRef(role).get();
+    const tokens = snap.exists ? ((snap.data()||{}).tokens || []) : [];
+    if(!tokens.length) return;
+    const res = await fetch(PUSH_CONFIG.workerUrl, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},   // text/plain để trình duyệt không cần gửi preflight
+      body: JSON.stringify({
+        key: PUSH_CONFIG.key,
+        tokens,
+        title: 'Sổ Lớp Học · ' + (META.studentName||''),
+        body: shortText(item.text, 160),
+        link: location.protocol==='https:' ? (location.origin + location.pathname) : ''
+      })
+    });
+    const out = await res.json().catch(()=>null);
+    if(out && Array.isArray(out.invalid) && out.invalid.length){   // dọn mã thiết bị đã hết hạn
+      await tokensRef(role).set({tokens: firebase.firestore.FieldValue.arrayRemove(...out.invalid)}, {merge:true});
+    }
+  }catch(e){ console.error('Đẩy thông báo ra điện thoại lỗi', role, e); }
+}
+async function renderPushBox(){
+  const box = document.getElementById('push-box');
+  if(!box) return;
+  if(!pushConfigured()){ box.style.display='none'; return; }
+  box.style.display = 'block';
+  if(isIOSDevice() && !isStandaloneApp()){
+    box.innerHTML = '📱 <b>iPhone/iPad:</b> bấm nút Chia sẻ của Safari → <b>Thêm vào Màn hình chính</b>, rồi mở trang từ biểu tượng mới tạo và vào đây bấm bật thông báo (cần iOS 16.4 trở lên).';
+    return;
+  }
+  if(!(await pushSupported())){
+    box.innerHTML = 'Trình duyệt này chưa hỗ trợ thông báo ra điện thoại. Hãy dùng Chrome (Android/máy tính) hoặc Safari từ biểu tượng ngoài màn hình chính (iPhone).';
+    return;
+  }
+  if(Notification.permission==='denied'){
+    box.innerHTML = '🚫 Thông báo đang bị chặn cho trang này. Vào cài đặt trình duyệt → Quyền của trang → bật lại Thông báo.';
+    return;
+  }
+  const dev = await storGet('push_device', false);
+  if(Notification.permission==='granted' && dev && dev.role===CURRENT_ROLE){
+    box.innerHTML = '<span class="push-on">✅ Đã bật thông báo ra thiết bị này</span> · <button type="button" class="logout-link" data-push="off">Tắt</button>';
+  } else {
+    box.innerHTML = '<button type="button" class="push-btn" data-push="on">📲 Bật thông báo trên thiết bị này</button>';
+  }
+}
+document.getElementById('push-box').addEventListener('click', (e)=>{
+  const b = e.target.closest('[data-push]');
+  if(!b) return;
+  if(b.dataset.push==='on') enablePush(); else disablePush();
+});
 
 /* =================== LOGIN LOGIC =================== */
 let loginRole = 'teacher';
@@ -821,6 +1184,8 @@ async function doLogin(){
 
 document.getElementById('logout-btn').addEventListener('click', async ()=>{
   await clearRemember();
+  await pushLogoutCleanup();
+  stopNotifListener();
   CURRENT_ROLE = null;
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
@@ -839,6 +1204,8 @@ async function enterApp(){
 
   await loadAvatars();
   renderMyAvatar();
+  startNotifListener();
+  autoRefreshPush();
 
   const months = [...new Set(LESSONS.map(l=>monthKey(l.date)))].sort();
   if(!CURRENT_MONTH || !months.includes(CURRENT_MONTH)){
@@ -936,6 +1303,10 @@ async function renderFeePanel(list){
           paidAt: fee.paidAt||null
         }, true);
         if(!ok) alert('Không lưu được, thử lại nhé.');
+        else sendNotif(['parent'], {
+          text:`Giáo viên đã ${fee.status==='unconfirmed' ? 'chốt' : 'chốt lại'} học phí ${monthLabel(CURRENT_MONTH)}: ${amount.toLocaleString('vi-VN')} đ (${officialCount} buổi). Bấm "Kiểm tra học phí" để xem bảng chi tiết.`,
+          month:CURRENT_MONTH
+        });
         renderFeePanel(list);
       });
       actions.appendChild(notifyBtn);
@@ -952,6 +1323,7 @@ async function renderFeePanel(list){
         payBtn.addEventListener('click', async ()=>{
           const ok = await storSet('fee:'+CURRENT_MONTH, {...fee, status:'paid', paidAt:new Date().toISOString()}, true);
           if(!ok) alert('Không lưu được, thử lại nhé.');
+          else sendNotif(['parent'], {text:`Giáo viên đã xác nhận nhận học phí ${monthLabel(CURRENT_MONTH)}. Học phí tháng này đã hoàn tất.`, month:CURRENT_MONTH});
           renderFeePanel(list);
         });
       }
@@ -987,6 +1359,7 @@ async function renderFeePanel(list){
       reportBtn.addEventListener('click', async ()=>{
         const ok = await storSet('fee:'+CURRENT_MONTH, {...fee, status:'parent_reported', parentReportedAt:new Date().toISOString()}, true);
         if(!ok) alert('Không lưu được, thử lại nhé.');
+        else sendNotif(['teacher'], {text:`${META.parentName||'Phụ huynh'} báo đã nộp học phí ${monthLabel(CURRENT_MONTH)}. Vui lòng kiểm tra tài khoản và xác nhận.`, month:CURRENT_MONTH});
         renderFeePanel(list);
       });
       actions.appendChild(reportBtn);
@@ -1035,8 +1408,34 @@ async function renderFeed(){
   // wire up interactions per lesson
   for(const lesson of list){
     wireLesson(lesson);
-    await renderSubmission(lesson);
+    for(const round of getRounds(lesson)){
+      await renderSubmission(lesson, round);
+    }
   }
+}
+
+function roundsHtml(lesson){
+  const rounds = getRounds(lesson);
+  if(!rounds.length){
+    return `<div class="lc-section">
+      <div class="lc-label">Bài tập về nhà</div>
+      <div class="hw-box"><div class="lc-text"><span class="muted-note">Chưa giao bài tập</span></div></div>
+    </div>`;
+  }
+  return rounds.map((r,i)=>{
+    const suffix = rounds.length>1 ? ` · Lần ${i+1}` : '';
+    return `<div class="lc-section">
+      <div class="lc-label">Bài tập về nhà${suffix}</div>
+      <div class="hw-box">
+        <div class="lc-text">${escapeHtml(r.content) || '<span class="muted-note">Chưa ghi yêu cầu bài tập</span>'}</div>
+        ${r.deadline ? `<div class="hw-deadline" id="dl-${lesson.id}-${r.id}">${escapeHtml(deadlineLine(lesson, r, null).text)}</div>` : ''}
+      </div>
+      <div class="lc-label" style="margin-top:10px;">Nộp bài${suffix}</div>
+      <div class="box" id="submit-box-${lesson.id}-${r.id}">
+        <div class="submit-content">Đang tải...</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function lessonHtml(lesson){
@@ -1080,24 +1479,7 @@ function lessonHtml(lesson){
         </div>
       </div>
 
-      <div class="lc-section">
-        <div class="lc-label">Bài tập về nhà</div>
-        <div class="hw-box">
-          <div class="lc-text">${escapeHtml(lesson.hw) || '<span class="muted-note">Chưa giao bài tập</span>'}</div>
-          <div class="link-row" style="margin-top:8px;">
-            ${resourceChip(lesson.assignmentLink, '📌 Link đề bài')}
-            ${resourceChip(lesson.submitLink, '📥 Nơi nộp bài')}
-          </div>
-          ${lesson.deadline ? `<div class="hw-deadline">Hạn nộp: ${lesson.deadline.split('-').reverse().join('/')}${deadlineNote(lesson.deadline)}</div>` : ''}
-        </div>
-      </div>
-
-      <div class="lc-section">
-        <div class="lc-label">Nộp bài</div>
-        <div class="box" id="submit-box-${lesson.id}">
-          <div class="submit-content">Đang tải...</div>
-        </div>
-      </div>
+      ${roundsHtml(lesson)}
 
       <div class="lc-section">
         <div class="lc-label">Chấm bài & đánh giá</div>
@@ -1164,32 +1546,36 @@ function gradeBoxHtml(lesson){
   `;
 }
 
-/* ----- submission box (async load) ----- */
-async function renderSubmission(lesson){
-  const box = document.querySelector(`#submit-box-${lesson.id} .submit-content`);
+/* ----- submission box (async load) — mỗi lần giao bài có trạng thái nộp/xác nhận riêng ----- */
+async function renderSubmission(lesson, round){
+  const box = document.querySelector(`#submit-box-${lesson.id}-${round.id} .submit-content`);
   if(!box) return;
-  const sub = (await loadSubmission(lesson.id)) || {locked:false, history:[]};
+  const key = subKey(lesson, round);
+  const sub = (await storGet(key, true)) || {locked:false, history:[], teacherConfirmedAt:null};
   const history = sub.history || [];
   const lastTs = history.length ? history[history.length-1] : null;
-  const status = submissionStatus(lesson, lastTs ? {submittedAt:lastTs} : null);
-  const hasLink = !!(lesson.submitLink && lesson.submitLink.trim());
+  const confirmedAt = sub.teacherConfirmedAt || null;
+  const status = submissionStatus(round, (lastTs||confirmedAt) ? {submittedAt:lastTs||confirmedAt} : null);
+
+  const dlEl = document.getElementById(`dl-${lesson.id}-${round.id}`);
+  if(dlEl && round.deadline){
+    const dl = deadlineLine(lesson, round, (lastTs||confirmedAt) ? status : null);
+    dlEl.textContent = dl.text;
+    dlEl.style.color = dl.color || '';
+  }
 
   let html = '';
   if(status){
     html += `<div class="quality-badge" style="color:${status.color}; background:${status.bg}; margin-top:0; margin-bottom:10px;">${status.label}</div>`;
   }
 
-  if(!hasLink){
-    html += `<div class="muted-note">Giáo viên chưa cung cấp link nộp bài cho buổi học này.</div>`;
-  } else if(sub.locked){
-    html += `<div class="locked-link">🔗 ${escapeHtml(lesson.submitLink)}</div>`;
-  } else {
-    html += `<a class="link-chip" href="${escapeHtml(lesson.submitLink)}" target="_blank" rel="noopener">🔗 Mở nơi nộp bài</a>`;
-  }
-
   html += lastTs
-    ? `<div class="muted-note" style="margin-top:8px;">Đã nộp lúc ${new Date(lastTs).toLocaleString('vi-VN')}</div>`
-    : `<div class="muted-note" style="margin-top:8px;">Chưa nộp bài.</div>`;
+    ? `<div class="muted-note" style="margin-top:8px;">Học sinh đã nộp lúc ${new Date(lastTs).toLocaleString('vi-VN')}</div>`
+    : `<div class="muted-note" style="margin-top:8px;">Học sinh chưa nộp bài.</div>`;
+
+  html += confirmedAt
+    ? `<div class="confirm-line">✅ Giáo viên đã xác nhận nhận bài lúc ${new Date(confirmedAt).toLocaleString('vi-VN')}</div>`
+    : (lastTs ? `<div class="confirm-line pending">Chờ giáo viên xác nhận.</div>` : '');
 
   if(CURRENT_ROLE!=='student' && history.length>1){
     html += `<details style="margin-top:6px;"><summary class="muted-note" style="cursor:pointer;">Lịch sử nộp bài (${history.length} lần)</summary>
@@ -1197,23 +1583,33 @@ async function renderSubmission(lesson){
     </details>`;
   }
 
-  if(CURRENT_ROLE==='student' && hasLink){
+  if(CURRENT_ROLE==='student'){
     html += `<div style="margin-top:10px;">
       ${sub.locked
         ? `<button class="btn-secondary edit-sub-btn">✏️ Chỉnh sửa</button>`
         : `<button class="submit-btn do-submit-btn">Nộp bài</button>`}
     </div>`;
   }
+  if(CURRENT_ROLE==='teacher'){
+    html += `<div style="margin-top:10px;">
+      ${confirmedAt
+        ? `<button class="logout-link unconfirm-btn">↺ Hủy xác nhận</button>`
+        : `<button class="submit-btn confirm-btn">✓ Xác nhận đã nộp bài</button>`}
+    </div>`;
+  }
 
   box.innerHTML = html;
+
+  const rerender = ()=>renderSubmission(lesson, round);
 
   const editBtn = box.querySelector('.edit-sub-btn');
   if(editBtn){
     editBtn.addEventListener('click', async ()=>{
       if(CURRENT_ROLE!=='student') return;
-      const ok = await storSet('submission:'+lesson.id, {locked:false, history}, true);
+      // mở lại để sửa -> xác nhận cũ của giáo viên không còn hiệu lực, cần xác nhận lại sau khi nộp lại
+      const ok = await storSet(key, {locked:false, history, teacherConfirmedAt:null}, true);
       if(!ok) alert('Không lưu được, thử lại nhé.');
-      await renderSubmission(lesson);
+      await rerender();
     });
   }
   const doSubmitBtn = box.querySelector('.do-submit-btn');
@@ -1224,13 +1620,47 @@ async function renderSubmission(lesson){
       doSubmitBtn.textContent = 'Đang lưu...';
       try{
         const newHistory = history.concat([new Date().toISOString()]);
-        const ok = await storSet('submission:'+lesson.id, {locked:true, history:newHistory}, true);
+        const ok = await storSet(key, {locked:true, history:newHistory, teacherConfirmedAt:confirmedAt}, true);
         if(!ok) alert('Không lưu được bài nộp, thử lại nhé.');
+        else {
+          const rs = getRounds(lesson);
+          const late = submissionStatus(round, {submittedAt:new Date().toISOString()});
+          sendNotif(['teacher','parent'], {
+            text:`${META.studentName} đã nộp bài${rs.length>1 ? ' Lần '+(rs.findIndex(x=>x.id===round.id)+1) : ''} — buổi ${lessonLabel(lesson)}${late && late.label==='Nộp muộn' ? ' (nộp muộn)' : ''}`,
+            lessonId:lesson.id
+          });
+        }
       }catch(err){
         console.error(err);
         alert('Có lỗi khi lưu bài nộp: '+(err.message||err));
       }
-      await renderSubmission(lesson);
+      await rerender();
+    });
+  }
+  const confirmBtn = box.querySelector('.confirm-btn');
+  if(confirmBtn){
+    confirmBtn.addEventListener('click', async ()=>{
+      if(CURRENT_ROLE!=='teacher') return;
+      confirmBtn.disabled = true;
+      const ok = await storSet(key, {locked:!!sub.locked, history, teacherConfirmedAt:new Date().toISOString()}, true);
+      if(!ok) alert('Không lưu được, thử lại nhé.');
+      else {
+        const rs = getRounds(lesson);
+        sendNotif(['student','parent'], {
+          text:`Giáo viên đã xác nhận nhận bài${rs.length>1 ? ' Lần '+(rs.findIndex(x=>x.id===round.id)+1) : ''} — buổi ${lessonLabel(lesson)}`,
+          lessonId:lesson.id
+        });
+      }
+      await rerender();
+    });
+  }
+  const unconfirmBtn = box.querySelector('.unconfirm-btn');
+  if(unconfirmBtn){
+    unconfirmBtn.addEventListener('click', async ()=>{
+      if(CURRENT_ROLE!=='teacher') return;
+      const ok = await storSet(key, {locked:!!sub.locked, history, teacherConfirmedAt:null}, true);
+      if(!ok) alert('Không lưu được, thử lại nhé.');
+      await rerender();
     });
   }
 }
@@ -1271,13 +1701,17 @@ function wireLesson(lesson){
   if(attBtn) attBtn.addEventListener('click', ()=>openAttendance(lesson));
   if(dupBtn) dupBtn.addEventListener('click', async ()=>{
     if(CURRENT_ROLE!=='teacher') return;
+    if(!(await freshLessonsOrAbort())) return;
+    const src = LESSONS.find(x=>x.id===lesson.id) || lesson;
     const newLesson = {
-      ...lesson,
+      ...src,
       id: 'l'+Date.now(),
+      hwRounds: JSON.parse(JSON.stringify(getRounds(src))),
       grading:{score:null, completionText:'', feedback:'', saved:false},
       classQuality:{attitude:100},
       attendance:null,
-      comments:[]
+      comments:[],
+      pendingNotice:true   // gửi thông báo "buổi học mới" khi giáo viên lưu bản sao
     };
     LESSONS.push(newLesson);
     await saveLessons();
@@ -1288,6 +1722,7 @@ function wireLesson(lesson){
   if(delBtn) delBtn.addEventListener('click', async ()=>{
     if(CURRENT_ROLE!=='teacher') return;
     if(confirm('Xóa buổi học này?')){
+      if(!(await freshLessonsOrAbort())) return;
       LESSONS = LESSONS.filter(l=>l.id!==lesson.id);
       await saveLessons();
       enterApp();
@@ -1299,19 +1734,28 @@ function wireLesson(lesson){
     gSave.addEventListener('click', async ()=>{
       if(CURRENT_ROLE!=='teacher'){ alert('Chỉ Giáo viên mới được chấm điểm.'); return; }
       const box = entry.querySelector('.grade-box');
-      lesson.grading = lesson.grading || {};
-      lesson.classQuality = lesson.classQuality || {};
       const scoreV = box.querySelector('.g-score').value;
       const compV = box.querySelector('.g-completion').value.trim();
       const attV = box.querySelector('.g-attitude').value;
-      lesson.grading.score = scoreV===''?null:Number(scoreV);
-      lesson.grading.completionText = compV;
-      lesson.classQuality.attitude = attV===''?null:Number(attV);
-      lesson.grading.feedback = box.querySelector('.g-feedback').value;
-      lesson.grading.saved = true;
-      lesson.grading.updatedAt = new Date().toISOString();
+      const feedbackV = box.querySelector('.g-feedback').value;
+      if(!(await freshLessonsOrAbort())) return;
+      const L = LESSONS.find(x=>x.id===lesson.id);
+      if(!L){ alert('Buổi học này đã bị xóa.'); renderFeed(); return; }
+      L.grading = L.grading || {};
+      L.classQuality = L.classQuality || {};
+      L.grading.score = scoreV===''?null:Number(scoreV);
+      L.grading.completionText = compV;
+      L.classQuality.attitude = attV===''?null:Number(attV);
+      L.grading.feedback = feedbackV;
+      L.grading.saved = true;
+      L.grading.updatedAt = new Date().toISOString();
       editingGradeIds.delete(lesson.id);
       await saveLessons();
+      const pctNow = overallPct(L);
+      sendNotif(['student','parent'], {
+        text:`Giáo viên đã chấm bài & nhận xét buổi ${lessonLabel(L)}${pctNow!==null ? ' · Chất lượng buổi học '+pctNow+'%' : ''}`,
+        lessonId:L.id
+      });
       renderFeed();
       setTimeout(()=>{
         const badge = document.querySelector(`.entry[data-id="${lesson.id}"] .quality-badge`);
@@ -1343,9 +1787,16 @@ function wireLesson(lesson){
     cSubmit.addEventListener('click', async ()=>{
       const text = entry.querySelector('.c-text').value.trim();
       if(!text) return;
-      lesson.comments = lesson.comments || [];
-      lesson.comments.push({role:CURRENT_ROLE, name:commenterName(), text, ts:Date.now()});
+      if(!(await freshLessonsOrAbort())) return;
+      const L = LESSONS.find(x=>x.id===lesson.id);
+      if(!L){ alert('Buổi học này đã bị xóa.'); renderFeed(); return; }
+      L.comments = L.comments || [];
+      L.comments.push({role:CURRENT_ROLE, name:commenterName(), text, ts:Date.now()});
       await saveLessons();
+      sendNotif(['teacher','parent','student'], {
+        text:`${commenterName()} (${ROLE_LABEL[CURRENT_ROLE]}) đã bình luận ở buổi ${lessonLabel(L)}: “${shortText(text, 80)}”`,
+        lessonId:L.id
+      });
       renderFeed();
     });
   }
@@ -1355,15 +1806,59 @@ function wireLesson(lesson){
 document.getElementById('add-lesson-btn').addEventListener('click', openAddLesson);
 document.getElementById('lesson-cancel').addEventListener('click', closeLessonModal);
 
+/* ----- Form: nhiều lần giao bài tập ----- */
+function roundBlockHtml(r, idx){
+  return `<div class="round-block" data-rid="${escapeHtml(r.id)}">
+    <div class="round-head"><b class="round-title">Lần ${idx+1}</b><button type="button" class="round-del logout-link">Xóa lần này</button></div>
+    <label>Bài tập yêu cầu</label>
+    <textarea class="round-hw r-content" placeholder="Dạng 1: Bài...; Dạng 2: Bài...">${escapeHtml(r.content||'')}</textarea>
+    <label>Hạn nộp bài</label>
+    <input type="date" class="r-deadline" value="${escapeHtml(r.deadline||'')}">
+  </div>`;
+}
+function renumberRounds(){
+  document.querySelectorAll('#rounds-wrap .round-block').forEach((b,i)=>{
+    b.querySelector('.round-title').textContent = 'Lần '+(i+1);
+  });
+}
+function renderRoundsForm(rounds){
+  document.getElementById('rounds-wrap').innerHTML = rounds.map((r,i)=>roundBlockHtml(r,i)).join('');
+}
+function readRoundsFromForm(){
+  const out = [];
+  document.querySelectorAll('#rounds-wrap .round-block').forEach(b=>{
+    const r = {
+      id: b.dataset.rid,
+      content: b.querySelector('.r-content').value.trim(),
+      deadline: b.querySelector('.r-deadline').value
+    };
+    if(r.content) out.push(r); // bỏ qua lần giao bài để trống
+  });
+  return out;
+}
+document.getElementById('round-add').addEventListener('click', ()=>{
+  const wrap = document.getElementById('rounds-wrap');
+  const used = [...wrap.querySelectorAll('.round-block')].map(b=>parseInt(String(b.dataset.rid).replace(/\D/g,''),10)||0);
+  const nextId = 'r'+(Math.max(0,...used)+1);
+  const idx = wrap.querySelectorAll('.round-block').length;
+  wrap.insertAdjacentHTML('beforeend', roundBlockHtml({id:nextId, content:'', deadline:new Date().toISOString().slice(0,10)}, idx));
+});
+document.getElementById('rounds-wrap').addEventListener('click', (e)=>{
+  const del = e.target.closest('.round-del');
+  if(!del) return;
+  del.closest('.round-block').remove();
+  renumberRounds();
+});
+
 function openAddLesson(){
   if(CURRENT_ROLE!=='teacher') return;
   editingLessonId = null;
   document.getElementById('lesson-modal-title').textContent = 'Thêm buổi học';
-  ['f-date','f-topic','f-timeslot','f-objective','f-materials','f-meeting','f-video','f-assignment-link','f-submit-link','f-hw','f-deadline'].forEach(id=>document.getElementById(id).value='');
+  ['f-date','f-topic','f-timeslot','f-objective','f-materials','f-meeting','f-video'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-session-type').value = 'official';
   const todayIso = new Date().toISOString().slice(0,10);
   document.getElementById('f-date').value = todayIso;
-  document.getElementById('f-deadline').value = todayIso;
+  renderRoundsForm([{id:'r1', content:'', deadline:todayIso}]);
   document.getElementById('lesson-modal').classList.add('show');
 }
 function openEditLesson(lesson){
@@ -1378,10 +1873,8 @@ function openEditLesson(lesson){
   document.getElementById('f-materials').value = lesson.materials||'';
   document.getElementById('f-meeting').value = lesson.meeting||'';
   document.getElementById('f-video').value = lesson.video||'';
-  document.getElementById('f-assignment-link').value = lesson.assignmentLink||'';
-  document.getElementById('f-submit-link').value = lesson.submitLink||'';
-  document.getElementById('f-hw').value = lesson.hw||'';
-  document.getElementById('f-deadline').value = lesson.deadline||'';
+  const rounds = getRounds(lesson).map(r=>({...r}));
+  renderRoundsForm(rounds.length ? rounds : [{id:'r1', content:'', deadline:new Date().toISOString().slice(0,10)}]);
   document.getElementById('lesson-modal').classList.add('show');
 }
 function closeLessonModal(){ document.getElementById('lesson-modal').classList.remove('show'); }
@@ -1399,24 +1892,46 @@ document.getElementById('lesson-save').addEventListener('click', async ()=>{
     materials: document.getElementById('f-materials').value.trim(),
     meeting: document.getElementById('f-meeting').value.trim(),
     video: document.getElementById('f-video').value.trim(),
-    assignmentLink: document.getElementById('f-assignment-link').value.trim(),
-    submitLink: document.getElementById('f-submit-link').value.trim(),
-    hw: document.getElementById('f-hw').value.trim(),
-    deadline: document.getElementById('f-deadline').value
+    hwRounds: readRoundsFromForm()
   };
+  if(!(await freshLessonsOrAbort())) return;
+  const teacherNm = META.teacherName || 'Giáo viên';
+  const roundsText = (rs)=>rs.map(r=>{
+    const i = data.hwRounds.indexOf(r)+1;
+    return `Lần ${i}${r.deadline ? ' (hạn '+ddmm(r.deadline)+')' : ''}`;
+  }).join(', ');
+  let savedLesson, noticeText;
   if(editingLessonId){
     const idx = LESSONS.findIndex(l=>l.id===editingLessonId);
-    LESSONS[idx] = {...LESSONS[idx], ...data};
+    if(idx<0){ alert('Buổi học này đã bị xóa.'); closeLessonModal(); enterApp(); return; }
+    const prev = LESSONS[idx];
+    const prevRounds = getRounds(prev);
+    savedLesson = {...prev, ...data};
+    const wasPending = !!prev.pendingNotice;
+    delete savedLesson.pendingNotice;
+    LESSONS[idx] = savedLesson;
+    if(wasPending){
+      noticeText = `${teacherNm} đã tạo buổi học mới: ${lessonLabel(savedLesson)}` + (data.hwRounds.length ? ' · Bài tập: '+roundsText(data.hwRounds) : '');
+    } else {
+      const changed = data.hwRounds.filter(r=>{
+        const old = prevRounds.find(x=>x.id===r.id);
+        return !old || old.content!==r.content || old.deadline!==r.deadline;
+      });
+      if(changed.length) noticeText = `${teacherNm} đã giao/cập nhật bài tập buổi ${lessonLabel(savedLesson)}: ${roundsText(changed)}`;
+    }
   } else {
-    LESSONS.push({
+    savedLesson = {
       id: 'l'+Date.now(),
       ...data,
       grading:{score:null, completionText:'', feedback:'', saved:false},
       classQuality:{attitude:100},
       comments:[]
-    });
+    };
+    LESSONS.push(savedLesson);
+    noticeText = `${teacherNm} đã tạo buổi học mới: ${lessonLabel(savedLesson)}` + (data.hwRounds.length ? ' · Bài tập: '+roundsText(data.hwRounds) : '');
   }
   await saveLessons();
+  if(noticeText) sendNotif(['student','parent'], {text:noticeText, lessonId:savedLesson.id});
   closeLessonModal();
   CURRENT_MONTH = monthKey(date);
   enterApp();
@@ -1437,11 +1952,19 @@ function closeAttendance(){
   attendanceLessonId = null;
 }
 async function saveAttendance(status, reason){
-  const lesson = LESSONS.find(l=>l.id===attendanceLessonId);
-  if(!lesson) return;
+  const id = attendanceLessonId;
+  if(!(await freshLessonsOrAbort())) return;
+  const lesson = LESSONS.find(l=>l.id===id);
+  if(!lesson){ alert('Buổi học này đã bị xóa.'); closeAttendance(); renderFeed(); return; }
   lesson.attendance = {status, reason: reason||'', updatedAt: new Date().toISOString()};
   await saveLessons();
   closeAttendance();
+  sendNotif(['student','parent'], {
+    text: status==='completed'
+      ? `Giáo viên đã điểm danh: buổi ${lessonLabel(lesson)} đã hoàn thành`
+      : `Buổi ${lessonLabel(lesson)} đã bị hủy${reason ? '. Lý do: '+reason : ''}`,
+    lessonId: lesson.id
+  });
   renderFeed();
 }
 document.getElementById('att-complete-btn').addEventListener('click', ()=>saveAttendance('completed'));
